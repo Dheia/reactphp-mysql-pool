@@ -4,6 +4,7 @@
 ## install
 
 ```
+composer require react/mysql:^0.6@dev
 composer require wpjscc/reactphp-mysql-pool dev-master -vvv
 ```
 

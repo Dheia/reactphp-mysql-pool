@@ -39,12 +39,12 @@ class Pool
         $this->factory = new Factory($loop, $connector);;
     }
 
-    public function query($sql)
+    public function query($sql, array $params = [])
     {
         $deferred = new Deferred();
 
-        $this->getIdleConnection()->then(function (ConnectionInterface $connection) use ($sql, $deferred) {
-            $connection->query($sql)->then(function(QueryResult $command) use ($deferred, $connection) {
+        $this->getIdleConnection()->then(function (ConnectionInterface $connection) use ($sql, $params, $deferred) {
+            $connection->query($sql, $params)->then(function(QueryResult $command) use ($deferred, $connection) {
                 try {
                     $deferred->resolve($command);
                 } catch (\Throwable $th) {
@@ -75,22 +75,30 @@ class Pool
             return \React\Promise\resolve($this->factory->createLazyConnection($this->uri));
         }
 
-        if ($this->max_wait_queue && $this->max_wait_queue < count($this->wait_queue)) {
-            return \React\Promise\reject(new \Exception("over max_wait_queue: ". $this->max_wait_queue));
+        if ($this->max_wait_queue && count($this->wait_queue) >= $this->max_wait_queue) {
+            return \React\Promise\reject(new \Exception("over max_wait_queue: ". $this->max_wait_queue.'-current quueue:'.count($this->wait_queue)));
         }
 
         $deferred = new Deferred();
 
-        $this->wait_queue[] = [$deferred];
+        $this->wait_queue[] = $deferred;
 
         if (!$this->wait_timeout) {
             return $deferred->promise();
         }
 
         return \React\Promise\Timer\timeout($deferred->promise(), $this->wait_timeout, $this->loop)->then(null, function ($e) use ($deferred) {
+            
+            foreach ($this->wait_queue as $key => $deferredWait) {
+                if ($deferredWait === $deferred) {
+                    unset($this->wait_queue[$key]);
+                    break;
+                }
+            }
+
             if ($e instanceof TimeoutException) {
                 throw new \RuntimeException(
-                    'wait_timeout  . timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)',
+                    'wait timed out after ' . $e->getTimeout() . ' seconds (ETIMEDOUT)'. 'and wait queue '.count($this->wait_queue).' count',
                     \defined('SOCKET_ETIMEDOUT') ? \SOCKET_ETIMEDOUT : 110
                 );
             }
@@ -101,8 +109,7 @@ class Pool
     public function releaseConnection(ConnectionInterface $connection)
     {
         if ($this->wait_queue) {
-            $queue_item = array_shift($this->wait_queue);
-            list($deferred) = $queue_item;
+            $deferred = array_shift($this->wait_queue);
             $deferred->resolve($connection);
             return;
         }
