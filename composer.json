@@ -7,5 +7,7 @@
         "psr-4": {
             "Wpjscc\\MySQL\\": "src"
         }
-    }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
 }
