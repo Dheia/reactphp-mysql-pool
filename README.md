@@ -16,7 +16,7 @@ use Wpjscc\MySQL\Pool;
 use React\MySQL\QueryResult;
 use React\MySQL\ConnectionInterface;
 
-$pool = new Pool('username:password@host/databasename', [
+$pool = new Pool('username:password@host?timeout=5/databasename', [
     'max_connections' => 10, // 10 connection --default 10
     'max_wait_queue' => 50, // how many sql in queue --default 50
     'wait_timeout' => 5,// wait time include response time --default 0
